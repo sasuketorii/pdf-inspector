@@ -1103,7 +1103,9 @@ mod tests {
     fn plan_worker_pools_builds_every_pool_when_all_succeed() {
         let pools = plan_worker_pools(3, |_index| Ok::<_, &str>(tiny_pool()));
         assert_eq!(pools.len(), 3);
-        assert!(pools.iter().all(|pool| matches!(pool, WorkerPool::Dedicated(_))));
+        assert!(pools
+            .iter()
+            .all(|pool| matches!(pool, WorkerPool::Dedicated(_))));
     }
 
     #[test]
@@ -1116,7 +1118,9 @@ mod tests {
             }
         });
         assert_eq!(pools.len(), 2);
-        assert!(pools.iter().all(|pool| matches!(pool, WorkerPool::Dedicated(_))));
+        assert!(pools
+            .iter()
+            .all(|pool| matches!(pool, WorkerPool::Dedicated(_))));
     }
 
     #[test]
@@ -1157,8 +1161,8 @@ mod tests {
     #[test]
     fn fallback_worker_preserves_page_order_and_releases_after_errors() {
         let pools = plan_worker_pools(3, |_| Err::<rayon::ThreadPool, _>("boom"));
-        let result = dispatch_pages_on_workers(&pools, &[0, 1, 2], |_worker, page| Ok(page * 2))
-            .unwrap();
+        let result =
+            dispatch_pages_on_workers(&pools, &[0, 1, 2], |_worker, page| Ok(page * 2)).unwrap();
         assert_eq!(result, vec![0, 2, 4]);
         assert!(matches!(
             pools[0].install(|| Err::<(), _>(OarOcrError::OcrDisabled)),
@@ -1180,9 +1184,11 @@ mod tests {
                     });
                     assert!(matches!(result, Err(OarOcrError::FallbackWorkerBusy)));
                     let empty: Vec<usize> = Vec::new();
-                    assert!(dispatch_pages_on_workers(&pools, &empty, |_worker, _page| Ok(()))
-                        .unwrap()
-                        .is_empty());
+                    assert!(
+                        dispatch_pages_on_workers(&pools, &empty, |_worker, _page| Ok(()))
+                            .unwrap()
+                            .is_empty()
+                    );
                     Ok(())
                 })
                 .unwrap();
@@ -1277,9 +1283,10 @@ mod tests {
     fn map_pages_on_workers_preserves_page_order() {
         let workers = [DirectWorker, DirectWorker, DirectWorker];
         let pages: Vec<usize> = (0..37).collect();
-        let result =
-            map_pages_on_workers(&workers, &pages, |_worker, page| Ok::<usize, usize>(page * 2))
-                .unwrap();
+        let result = map_pages_on_workers(&workers, &pages, |_worker, page| {
+            Ok::<usize, usize>(page * 2)
+        })
+        .unwrap();
         let expected: Vec<usize> = pages.iter().map(|page| page * 2).collect();
         assert_eq!(result, expected);
     }
