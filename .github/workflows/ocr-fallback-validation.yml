@@ -5,10 +5,10 @@ on:
     branches: [fix/ocr-fallback-validation-540]
 
 permissions:
-  contents: read
+  contents: write
 
 env:
-  CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: never
   CARGO_PROFILE_TEST_DEBUG: 0
 
 jobs:
@@ -25,35 +25,38 @@ jobs:
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
         with:
           key: ocr-fallback-validation
-      - name: Check formatting
-        id: fmt
-        continue-on-error: true
-        run: cargo fmt --all -- --check
-      - name: Default Clippy
-        id: clippy
-        continue-on-error: true
-        run: cargo clippy -- -D warnings
-      - name: OCR Clippy
-        id: ocr_clippy
-        continue-on-error: true
-        run: cargo clippy --features ocr -- -D warnings
-      - name: Default tests
-        id: tests
-        continue-on-error: true
-        run: cargo test
-      - name: OCR tests
-        id: ocr_tests
-        continue-on-error: true
-        run: cargo test --features ocr
-      - name: Require every check to pass
-        if: always()
-        env:
-          FMT: ${{ steps.fmt.outcome }}
-          CLIPPY: ${{ steps.clippy.outcome }}
-          OCR_CLIPPY: ${{ steps.ocr_clippy.outcome }}
-          TESTS: ${{ steps.tests.outcome }}
-          OCR_TESTS: ${{ steps.ocr_tests.outcome }}
+      - name: Format candidate source on validation branch only
         run: |
-          for result in "$FMT" "$CLIPPY" "$OCR_CLIPPY" "$TESTS" "$OCR_TESTS"; do
-            test "$result" = success || exit 1
-          done
+          cargo fmt --all
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/vision/oar.rs
+          if ! git diff --cached --quiet; then
+            git commit -m 'style(ocr): format fallback admission fix [skip ci]'
+            git push origin HEAD:fix/ocr-fallback-validation-540
+          fi
+      - name: Validate and report actual exit codes
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          check() {
+            local name="$1"
+            shift
+            "$@" > "/tmp/${name}.log" 2>&1
+            local result=$?
+            echo "VALIDATION ${name} EXIT_CODE=${result}"
+            tail -n 45 "/tmp/${name}.log"
+            if [ "$result" -ne 0 ]; then
+              failed=1
+            fi
+          }
+          echo "TESTED_COMMIT=$(git rev-parse HEAD)"
+          echo "TESTED_SOURCE_BLOB=$(git hash-object src/vision/oar.rs)"
+          check fmt cargo fmt --all -- --check
+          check clippy cargo clippy -- -D warnings
+          check ocr_clippy cargo clippy --features ocr -- -D warnings
+          check tests cargo test
+          check ocr_tests cargo test --features ocr
+          echo "VALIDATION_OVERALL_EXIT_CODE=${failed}"
+          exit "$failed"
